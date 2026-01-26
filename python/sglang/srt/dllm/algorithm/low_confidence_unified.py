@@ -75,15 +75,12 @@ class LowConfidenceUnified(DllmAlgorithm):
         next_token_ids = forward_batch.input_ids.view(batch_size, self.block_size).tolist()
         
         next_token_ids_list = []
+        accept_length_per_req_cpu = []
         for i in range(batch_size):
-            cur_ids = next_token_ids[i]
-            if mask_counts_cpu[i] > 0:
-                # Block has mask tokens - this is a decode phase
-                # Append -1 as marker indicating more extra forwards needed
-                cur_ids.append(-1)
-            next_token_ids_list.append(cur_ids)
+            next_token_ids_list.append(next_token_ids[i])
+            accept_length_per_req_cpu.append(self.block_size if mask_counts_cpu[i] == 0 else 0)
         
-        return next_token_ids_list
+        return next_token_ids_list, accept_length_per_req_cpu
 
 
     def run(
@@ -97,11 +94,11 @@ class LowConfidenceUnified(DllmAlgorithm):
         logits_output, can_run_cuda_graph = out.logits_output, out.can_run_graph
 
         # Post-forward processing: pick tokens and build output list
-        next_token_ids_list = self._post_forward_process(
+        next_token_ids_list, accept_length_per_req_cpu = self._post_forward_process(
             forward_batch, logits_output.full_logits
         )
 
-        return logits_output, next_token_ids_list, can_run_cuda_graph
+        return logits_output, next_token_ids_list, accept_length_per_req_cpu, can_run_cuda_graph
 
 
 Algorithm = LowConfidenceUnified

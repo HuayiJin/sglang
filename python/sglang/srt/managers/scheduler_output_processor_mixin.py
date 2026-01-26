@@ -341,7 +341,7 @@ class SchedulerOutputProcessorMixin:
             len_cur_tokens = len(next_token_ids)
 
             assert len_cur_tokens == block_size
-            if result.num_accepted_tokens == 0:
+            if result.accept_length_per_req_cpu == 0:
                 req.dllm_incomplete_ids = next_token_ids
                 # release current kv cache since they are incomplete
                 old_prefix_len = len(req.prefix_indices) if hasattr(req, 'prefix_indices') and req.prefix_indices is not None else 0
