@@ -750,6 +750,14 @@ class PrefillAdder:
             if self.dllm_config is not None:
                 if self.rem_dllm_tokens <= 0:
                     return AddReqResult.OTHER
+                # #   HADE FIXME HERE
+                # # DLLM 新请求需要检查 rem_total_tokens 是否足够
+                # # 防止新请求打爆内存导致 OOM
+                # # 注意：这里只针对新请求，已运行的请求在 add_chunked_req 中不受此限制
+                # dllm_required_tokens = self.dllm_block_size * 1000 # 保证当前请求能跑完
+                # if dllm_required_tokens > self.rem_total_tokens:
+                #     # print(f"skip with AddReqResult.NO_TOKEN {dllm_required_tokens=} {self.rem_total_tokens=}")
+                #     return AddReqResult.NO_TOKEN
 
                 assert (
                     truncation_align_size is None
