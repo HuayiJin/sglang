@@ -46,7 +46,7 @@ def get_file_paths():
 # ============================================================================
 ALGORITHM_DEBUG_CODE = '''"""Debug version of LowConfidenceFDFO - AUTO-GENERATED, DO NOT EDIT"""
 from typing import List, Tuple, Union
-import logging
+import sys
 
 import numpy as np
 import torch
@@ -58,13 +58,10 @@ from sglang.srt.layers.logits_processor import LogitsProcessorOutput
 from sglang.srt.model_executor.forward_batch_info import ForwardBatch
 from sglang.srt.model_executor.model_runner import ModelRunner
 
-# Debug logger
-_logger = logging.getLogger("sglang.dllm.debug")
-_logger.setLevel(logging.DEBUG)
-if not _logger.handlers:
-    _h = logging.StreamHandler()
-    _h.setFormatter(logging.Formatter('[DLLM_DEBUG %(asctime)s] %(message)s', datefmt='%H:%M:%S'))
-    _logger.addHandler(_h)
+
+def _dlog(msg):
+    """Debug print that flushes immediately."""
+    print(f"[DLLM_DEBUG] {msg}", file=sys.stderr, flush=True)
 
 
 class LowConfidenceFDFO(DllmAlgorithm):
@@ -75,7 +72,7 @@ class LowConfidenceFDFO(DllmAlgorithm):
         self.threshold = config.algorithm_config.get("threshold", 0.95)
         self.first_done_first_out_mode = True
         self._call_count = 0
-        _logger.info(f"[INIT] threshold={self.threshold}, block_size={self.block_size}, mask_id={self.mask_id}")
+        _dlog(f"[INIT] threshold={self.threshold}, block_size={self.block_size}, mask_id={self.mask_id}")
 
     def run(
         self,
@@ -90,7 +87,7 @@ class LowConfidenceFDFO(DllmAlgorithm):
         batch_size = forward_batch.batch_size
 
         mask_counts_cpu = (forward_batch.input_ids == self.mask_id).view(batch_size, self.block_size).sum(dim=1).tolist()
-        _logger.debug(f"[RUN#{cid}] batch_size={batch_size}, mask_counts={mask_counts_cpu}")
+        _dlog(f"[RUN#{cid}] batch_size={batch_size}, mask_counts={mask_counts_cpu}")
 
         assert batch_size == forward_batch.input_ids.shape[0] // self.block_size
 
@@ -102,7 +99,7 @@ class LowConfidenceFDFO(DllmAlgorithm):
             mask_count = torch.sum(block_mask_index).item()
 
             if mask_count == 0:
-                _logger.debug(f"[RUN#{cid}] b{batch_id}: NO MASKS, will accept")
+                _dlog(f"[RUN#{cid}] b{batch_id}: NO MASKS, will accept")
                 continue
 
             curr_logits = logits_output.full_logits[curr_block_start:curr_block_end]
@@ -114,16 +111,16 @@ class LowConfidenceFDFO(DllmAlgorithm):
             num_above = transfer_index.sum().item()
 
             mask_confs = confidence[block_mask_index].tolist()[:5]
-            _logger.debug(f"[RUN#{cid}] b{batch_id}: {mask_count} masks, confs={[f'{c:.3f}' for c in mask_confs]}, {num_above} above thresh")
+            _dlog(f"[RUN#{cid}] b{batch_id}: {mask_count} masks, confs={[f"{c:.3f}" for c in mask_confs]}, {num_above} above thresh")
 
             if num_above == 0:
                 _, select_index = torch.topk(confidence, k=1)
                 transfer_index[select_index] = True
-                _logger.debug(f"[RUN#{cid}] b{batch_id}: FALLBACK pos={select_index.item()}")
+                _dlog(f"[RUN#{cid}] b{batch_id}: FALLBACK pos={select_index.item()}")
 
             block_input_ids[transfer_index] = x[transfer_index]
             remaining = (block_input_ids == self.mask_id).sum().item()
-            _logger.debug(f"[RUN#{cid}] b{batch_id}: {remaining} masks remaining")
+            _dlog(f"[RUN#{cid}] b{batch_id}: {remaining} masks remaining")
 
         next_token_ids = forward_batch.input_ids.view(batch_size, self.block_size).tolist()
         next_token_ids_list = []
@@ -134,9 +131,9 @@ class LowConfidenceFDFO(DllmAlgorithm):
             accept_len = self.block_size if mask_counts_cpu[i] == 0 else 0
             accept_length_per_req_cpu.append(accept_len)
             if accept_len > 0:
-                _logger.info(f"[RUN#{cid}] b{i}: ACCEPT (no masks at start)")
+                _dlog(f"[RUN#{cid}] b{i}: ACCEPT (no masks at start)")
             else:
-                _logger.debug(f"[RUN#{cid}] b{i}: INCOMPLETE ({mask_counts_cpu[i]} masks)")
+                _dlog(f"[RUN#{cid}] b{i}: INCOMPLETE ({mask_counts_cpu[i]} masks)")
 
         return logits_output, next_token_ids_list, accept_length_per_req_cpu, can_run_cuda_graph
 
@@ -153,13 +150,9 @@ PROCESSOR_PATCH_END = "# === DLLM_DEBUG_PATCH_END ==="
 
 PROCESSOR_DEBUG_IMPORT = """
 # === DLLM_DEBUG_PATCH_START ===
-import logging as _dllm_logging
-_dllm_proc_logger = _dllm_logging.getLogger("sglang.dllm.debug.processor")
-_dllm_proc_logger.setLevel(_dllm_logging.DEBUG)
-if not _dllm_proc_logger.handlers:
-    _dllm_h = _dllm_logging.StreamHandler()
-    _dllm_h.setFormatter(_dllm_logging.Formatter('[DLLM_PROC %(asctime)s] %(message)s', datefmt='%H:%M:%S'))
-    _dllm_proc_logger.addHandler(_dllm_h)
+import sys as _dllm_sys
+def _dllm_plog(msg):
+    print(f"[DLLM_PROC] {msg}", file=_dllm_sys.stderr, flush=True)
 # === DLLM_DEBUG_PATCH_END ===
 """
 
@@ -223,18 +216,13 @@ PROCESSOR_FUNC_DEBUG = """    def process_batch_result_dllm_fdfo(
         batch: ScheduleBatch,
         result: GenerationBatchResult,
     ):
-        # === DLLM_DEBUG_PATCH_START ===
-        import logging as _log
-        _plog = _log.getLogger("sglang.dllm.debug.processor")
-        # === DLLM_DEBUG_PATCH_END ===
-
         if result.copy_done is not None:
             result.copy_done.synchronize()
 
         self.token_to_kv_pool_allocator.free_group_begin()
         block_size = batch.dllm_config.block_size
 
-        _plog.debug(f"[PROC] Processing batch of {batch.batch_size()} reqs")
+        _dllm_plog(f"Processing batch of {batch.batch_size()} reqs")
 
         for idx in range(batch.batch_size()):
             req = batch.reqs[idx]
@@ -242,12 +230,12 @@ PROCESSOR_FUNC_DEBUG = """    def process_batch_result_dllm_fdfo(
             len_cur_tokens = len(next_token_ids)
             accept_len = result.accept_length_per_req_cpu[idx]
 
-            _plog.debug(f"[PROC] req={req.rid[:8]}... idx={idx} accept={accept_len} output_ids_len={len(req.output_ids)}")
+            _dllm_plog(f"req={req.rid[:8]}... idx={idx} accept={accept_len} output_ids_len={len(req.output_ids)}")
 
             assert len_cur_tokens == block_size
             if accept_len == 0:
                 req.dllm_incomplete_ids = next_token_ids
-                _plog.debug(f"[PROC] req={req.rid[:8]}... INCOMPLETE, will retry")
+                _dllm_plog(f"req={req.rid[:8]}... INCOMPLETE, will retry")
                 old_prefix_len = len(req.prefix_indices) if hasattr(req, 'prefix_indices') and req.prefix_indices is not None else 0
                 new_fill_len = len(req.fill_ids)
                 if new_fill_len > old_prefix_len:
@@ -261,16 +249,16 @@ PROCESSOR_FUNC_DEBUG = """    def process_batch_result_dllm_fdfo(
             len_input = len(req.origin_input_ids)
             len_fill = len(req.fill_ids)
 
-            _plog.debug(f"[PROC] req={req.rid[:8]}... len_input={len_input} len_fill={len_fill}")
+            _dllm_plog(f"req={req.rid[:8]}... len_input={len_input} len_fill={len_fill}")
 
             if (len_fill < len_input):
-                _plog.debug(f"[PROC] req={req.rid[:8]}... PREFILL stage, skip output")
+                _dllm_plog(f"req={req.rid[:8]}... PREFILL stage, skip output")
                 continue
 
             if len_fill - len_cur_tokens < len_input:
                 old_len = len(next_token_ids)
                 next_token_ids = next_token_ids[len_input-len_fill:]
-                _plog.debug(f"[PROC] req={req.rid[:8]}... Trimmed {old_len} -> {len(next_token_ids)} tokens")
+                _dllm_plog(f"req={req.rid[:8]}... Trimmed {old_len} -> {len(next_token_ids)} tokens")
 
             self.num_generated_tokens += len_cur_tokens
 
@@ -281,15 +269,14 @@ PROCESSOR_FUNC_DEBUG = """    def process_batch_result_dllm_fdfo(
                 tokens_added += 1
                 req.check_finished()
                 if req.finished():
-                    _plog.info(f"[PROC] req={req.rid[:8]}... FINISHED after {tokens_added} tokens, "
-                              f"reason={req.finished_reason}, total={len(req.output_ids)}")
+                    _dllm_plog(f"req={req.rid[:8]}... FINISHED after {tokens_added} tokens, reason={req.finished_reason}, total={len(req.output_ids)}")
                     release_kv_cache(req, self.tree_cache)
                     req.time_stats.completion_time = time.perf_counter()
                     finished = True
                     break
 
             if not finished:
-                _plog.debug(f"[PROC] req={req.rid[:8]}... Added {tokens_added} tokens, total={len(req.output_ids)}")
+                _dllm_plog(f"req={req.rid[:8]}... Added {tokens_added} tokens, total={len(req.output_ids)}")
                 self.tree_cache.cache_unfinished_req(req)
 
         self.stream_output(batch.reqs, batch.return_logprob)
