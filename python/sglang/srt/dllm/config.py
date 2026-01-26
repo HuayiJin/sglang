@@ -2,7 +2,6 @@ from typing import Any
 
 from sglang.srt.configs.model_config import ModelConfig
 from sglang.srt.server_args import ServerArgs
-from sglang.srt.dllm.algorithm import algo_name_to_cls
 
 class DllmConfig:
     def __init__(
