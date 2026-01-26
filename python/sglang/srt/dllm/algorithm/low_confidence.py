@@ -98,7 +98,7 @@ class LowConfidence(DllmAlgorithm):
             next_token_ids[i, start_list[i] :] for i in range(batch_size)
         ]
 
-        return logits_output, next_token_ids_list, can_run_cuda_graph
+        return logits_output, next_token_ids_list, None, can_run_cuda_graph
 
 
 Algorithm = LowConfidence

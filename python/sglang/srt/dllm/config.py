@@ -2,7 +2,7 @@ from typing import Any
 
 from sglang.srt.configs.model_config import ModelConfig
 from sglang.srt.server_args import ServerArgs
-
+from sglang.srt.dllm.algorithm import algo_name_to_cls
 
 class DllmConfig:
     def __init__(
@@ -12,12 +12,14 @@ class DllmConfig:
         block_size: int,
         mask_id: int,
         max_running_requests: int,
+        is_unified_forward: bool,
     ):
         self.algorithm = algorithm
         self.algorithm_config = algorithm_config
         self.block_size = block_size
         self.mask_id = mask_id
         self.max_running_requests = max_running_requests
+        self.is_unified_forward = is_unified_forward
 
     @staticmethod
     def from_server_args(
@@ -67,4 +69,5 @@ class DllmConfig:
             block_size=block_size,
             mask_id=mask_id,
             max_running_requests=max_running_requests,
+            is_unified_forward = algo_name_to_cls[server_args.dllm_algorithm].is_unified_forward is True
         )
