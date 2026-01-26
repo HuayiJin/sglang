@@ -5,10 +5,10 @@ Apply/remove debug patches for DLLM empty answer investigation.
 Usage:
     # Apply debug patches
     python -m sglang.test.apply_dllm_debug --apply
-    
-    # Remove debug patches  
+
+    # Remove debug patches
     python -m sglang.test.apply_dllm_debug --remove
-    
+
     # Check status
     python -m sglang.test.apply_dllm_debug --status
 
@@ -19,12 +19,12 @@ Debug logs will appear with [DLLM_DEBUG] prefix.
 import argparse
 import os
 import shutil
-import sys
 
 
 def get_sglang_path():
     """Get the sglang installation path."""
     import sglang
+
     return os.path.dirname(sglang.__file__)
 
 
@@ -32,8 +32,12 @@ def get_file_paths():
     """Get paths to files that need patching."""
     sglang_path = get_sglang_path()
     return {
-        'algorithm': os.path.join(sglang_path, 'srt', 'dllm', 'algorithm', 'low_confidence_fdfo.py'),
-        'processor': os.path.join(sglang_path, 'srt', 'managers', 'scheduler_output_processor_mixin.py'),
+        "algorithm": os.path.join(
+            sglang_path, "srt", "dllm", "algorithm", "low_confidence_fdfo.py"
+        ),
+        "processor": os.path.join(
+            sglang_path, "srt", "managers", "scheduler_output_processor_mixin.py"
+        ),
     }
 
 
@@ -80,27 +84,27 @@ class LowConfidenceFDFO(DllmAlgorithm):
     ) -> Tuple[Union[LogitsProcessorOutput, torch.Tensor], List[List[int]], bool]:
         self._call_count += 1
         cid = self._call_count
-        
+
         out = model_runner.forward(forward_batch, pp_proxy_tensors=None)
         logits_output, can_run_cuda_graph = out.logits_output, out.can_run_graph
         batch_size = forward_batch.batch_size
 
         mask_counts_cpu = (forward_batch.input_ids == self.mask_id).view(batch_size, self.block_size).sum(dim=1).tolist()
         _logger.debug(f"[RUN#{cid}] batch_size={batch_size}, mask_counts={mask_counts_cpu}")
-        
+
         assert batch_size == forward_batch.input_ids.shape[0] // self.block_size
-        
+
         for batch_id in range(batch_size):
             curr_block_start = batch_id * self.block_size
             curr_block_end = curr_block_start + self.block_size
             block_input_ids = forward_batch.input_ids[curr_block_start:curr_block_end]
             block_mask_index = block_input_ids == self.mask_id
             mask_count = torch.sum(block_mask_index).item()
-            
+
             if mask_count == 0:
                 _logger.debug(f"[RUN#{cid}] b{batch_id}: NO MASKS, will accept")
                 continue
-            
+
             curr_logits = logits_output.full_logits[curr_block_start:curr_block_end]
             x = torch.argmax(curr_logits, dim=-1)
             p = torch.squeeze(torch.gather(F.softmax(curr_logits, dim=-1), dim=-1, index=torch.unsqueeze(x, -1)), -1)
@@ -120,11 +124,11 @@ class LowConfidenceFDFO(DllmAlgorithm):
             block_input_ids[transfer_index] = x[transfer_index]
             remaining = (block_input_ids == self.mask_id).sum().item()
             _logger.debug(f"[RUN#{cid}] b{batch_id}: {remaining} masks remaining")
-        
+
         next_token_ids = forward_batch.input_ids.view(batch_size, self.block_size).tolist()
         next_token_ids_list = []
         accept_length_per_req_cpu = []
-        
+
         for i in range(batch_size):
             next_token_ids_list.append(next_token_ids[i])
             accept_len = self.block_size if mask_counts_cpu[i] == 0 else 0
@@ -147,7 +151,7 @@ Algorithm = LowConfidenceFDFO
 PROCESSOR_PATCH_MARKER = "# === DLLM_DEBUG_PATCH_START ==="
 PROCESSOR_PATCH_END = "# === DLLM_DEBUG_PATCH_END ==="
 
-PROCESSOR_DEBUG_IMPORT = '''
+PROCESSOR_DEBUG_IMPORT = """
 # === DLLM_DEBUG_PATCH_START ===
 import logging as _dllm_logging
 _dllm_proc_logger = _dllm_logging.getLogger("sglang.dllm.debug.processor")
@@ -157,9 +161,9 @@ if not _dllm_proc_logger.handlers:
     _dllm_h.setFormatter(_dllm_logging.Formatter('[DLLM_PROC %(asctime)s] %(message)s', datefmt='%H:%M:%S'))
     _dllm_proc_logger.addHandler(_dllm_h)
 # === DLLM_DEBUG_PATCH_END ===
-'''
+"""
 
-PROCESSOR_FUNC_ORIGINAL = '''    def process_batch_result_dllm_fdfo(
+PROCESSOR_FUNC_ORIGINAL = """    def process_batch_result_dllm_fdfo(
         self: Scheduler,
         batch: ScheduleBatch,
         result: GenerationBatchResult,
@@ -187,7 +191,7 @@ PROCESSOR_FUNC_ORIGINAL = '''    def process_batch_result_dllm_fdfo(
                     ]
                     self.token_to_kv_pool_allocator.free(kv_indices_to_free)
                 continue
-            
+
             req.dllm_incomplete_ids = []
             len_input = len(req.origin_input_ids)
             len_fill = len(req.fill_ids)
@@ -212,9 +216,9 @@ PROCESSOR_FUNC_ORIGINAL = '''    def process_batch_result_dllm_fdfo(
                 self.tree_cache.cache_unfinished_req(req)
 
         self.stream_output(batch.reqs, batch.return_logprob)
-        self.token_to_kv_pool_allocator.free_group_end()'''
+        self.token_to_kv_pool_allocator.free_group_end()"""
 
-PROCESSOR_FUNC_DEBUG = '''    def process_batch_result_dllm_fdfo(
+PROCESSOR_FUNC_DEBUG = """    def process_batch_result_dllm_fdfo(
         self: Scheduler,
         batch: ScheduleBatch,
         result: GenerationBatchResult,
@@ -223,13 +227,13 @@ PROCESSOR_FUNC_DEBUG = '''    def process_batch_result_dllm_fdfo(
         import logging as _log
         _plog = _log.getLogger("sglang.dllm.debug.processor")
         # === DLLM_DEBUG_PATCH_END ===
-        
+
         if result.copy_done is not None:
             result.copy_done.synchronize()
 
         self.token_to_kv_pool_allocator.free_group_begin()
         block_size = batch.dllm_config.block_size
-        
+
         _plog.debug(f"[PROC] Processing batch of {batch.batch_size()} reqs")
 
         for idx in range(batch.batch_size()):
@@ -237,7 +241,7 @@ PROCESSOR_FUNC_DEBUG = '''    def process_batch_result_dllm_fdfo(
             next_token_ids:list = result.next_token_ids[idx]
             len_cur_tokens = len(next_token_ids)
             accept_len = result.accept_length_per_req_cpu[idx]
-            
+
             _plog.debug(f"[PROC] req={req.rid[:8]}... idx={idx} accept={accept_len} output_ids_len={len(req.output_ids)}")
 
             assert len_cur_tokens == block_size
@@ -252,13 +256,13 @@ PROCESSOR_FUNC_DEBUG = '''    def process_batch_result_dllm_fdfo(
                     ]
                     self.token_to_kv_pool_allocator.free(kv_indices_to_free)
                 continue
-            
+
             req.dllm_incomplete_ids = []
             len_input = len(req.origin_input_ids)
             len_fill = len(req.fill_ids)
-            
+
             _plog.debug(f"[PROC] req={req.rid[:8]}... len_input={len_input} len_fill={len_fill}")
-            
+
             if (len_fill < len_input):
                 _plog.debug(f"[PROC] req={req.rid[:8]}... PREFILL stage, skip output")
                 continue
@@ -267,7 +271,7 @@ PROCESSOR_FUNC_DEBUG = '''    def process_batch_result_dllm_fdfo(
                 old_len = len(next_token_ids)
                 next_token_ids = next_token_ids[len_input-len_fill:]
                 _plog.debug(f"[PROC] req={req.rid[:8]}... Trimmed {old_len} -> {len(next_token_ids)} tokens")
-                
+
             self.num_generated_tokens += len_cur_tokens
 
             finished=False
@@ -283,65 +287,65 @@ PROCESSOR_FUNC_DEBUG = '''    def process_batch_result_dllm_fdfo(
                     req.time_stats.completion_time = time.perf_counter()
                     finished = True
                     break
-                    
+
             if not finished:
                 _plog.debug(f"[PROC] req={req.rid[:8]}... Added {tokens_added} tokens, total={len(req.output_ids)}")
                 self.tree_cache.cache_unfinished_req(req)
 
         self.stream_output(batch.reqs, batch.return_logprob)
-        self.token_to_kv_pool_allocator.free_group_end()'''
+        self.token_to_kv_pool_allocator.free_group_end()"""
 
 
 def apply_patches():
     """Apply debug patches."""
     paths = get_file_paths()
-    
+
     print("=" * 60)
     print("Applying DLLM debug patches...")
     print("=" * 60)
-    
+
     # Patch algorithm file
-    algo_path = paths['algorithm']
-    backup_path = algo_path + '.orig'
-    
+    algo_path = paths["algorithm"]
+    backup_path = algo_path + ".orig"
+
     if os.path.exists(backup_path):
         print(f"[WARN] Backup already exists: {backup_path}")
         print("       Patches may already be applied. Use --status to check.")
     else:
         shutil.copy(algo_path, backup_path)
         print(f"[OK] Backed up: {algo_path}")
-    
-    with open(algo_path, 'w') as f:
+
+    with open(algo_path, "w") as f:
         f.write(ALGORITHM_DEBUG_CODE)
     print(f"[OK] Patched: {algo_path}")
-    
+
     # Patch processor file
-    proc_path = paths['processor']
-    proc_backup = proc_path + '.orig'
-    
-    with open(proc_path, 'r') as f:
+    proc_path = paths["processor"]
+    proc_backup = proc_path + ".orig"
+
+    with open(proc_path, "r") as f:
         content = f.read()
-    
+
     if PROCESSOR_PATCH_MARKER in content:
         print(f"[SKIP] Processor already patched: {proc_path}")
     else:
         if not os.path.exists(proc_backup):
             shutil.copy(proc_path, proc_backup)
             print(f"[OK] Backed up: {proc_path}")
-        
+
         # Add import at the top (after existing imports)
-        import_pos = content.find('\nfrom sglang.srt')
+        import_pos = content.find("\nfrom sglang.srt")
         if import_pos == -1:
             import_pos = 0
         content = content[:import_pos] + PROCESSOR_DEBUG_IMPORT + content[import_pos:]
-        
+
         # Replace the function
         content = content.replace(PROCESSOR_FUNC_ORIGINAL, PROCESSOR_FUNC_DEBUG)
-        
-        with open(proc_path, 'w') as f:
+
+        with open(proc_path, "w") as f:
             f.write(content)
         print(f"[OK] Patched: {proc_path}")
-    
+
     print("=" * 60)
     print("Debug patches applied!")
     print("")
@@ -356,20 +360,20 @@ def apply_patches():
 def remove_patches():
     """Remove debug patches and restore originals."""
     paths = get_file_paths()
-    
+
     print("=" * 60)
     print("Removing DLLM debug patches...")
     print("=" * 60)
-    
+
     for name, path in paths.items():
-        backup = path + '.orig'
+        backup = path + ".orig"
         if os.path.exists(backup):
             shutil.copy(backup, path)
             os.remove(backup)
             print(f"[OK] Restored: {path}")
         else:
             print(f"[SKIP] No backup found for: {path}")
-    
+
     print("=" * 60)
     print("Debug patches removed!")
     print("=" * 60)
@@ -378,38 +382,38 @@ def remove_patches():
 def check_status():
     """Check if patches are applied."""
     paths = get_file_paths()
-    
+
     print("=" * 60)
     print("DLLM Debug Patch Status")
     print("=" * 60)
-    
+
     for name, path in paths.items():
-        backup = path + '.orig'
-        
-        with open(path, 'r') as f:
+        backup = path + ".orig"
+
+        with open(path, "r") as f:
             content = f.read()
-        
-        is_patched = PROCESSOR_PATCH_MARKER in content or 'DEBUG VERSION' in content
+
+        is_patched = PROCESSOR_PATCH_MARKER in content or "DEBUG VERSION" in content
         has_backup = os.path.exists(backup)
-        
+
         status = "PATCHED" if is_patched else "ORIGINAL"
         backup_status = "(backup exists)" if has_backup else "(no backup)"
-        
+
         print(f"  {name}: {status} {backup_status}")
         print(f"    Path: {path}")
-    
+
     print("=" * 60)
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Apply/remove DLLM debug patches')
+    parser = argparse.ArgumentParser(description="Apply/remove DLLM debug patches")
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument('--apply', action='store_true', help='Apply debug patches')
-    group.add_argument('--remove', action='store_true', help='Remove debug patches')
-    group.add_argument('--status', action='store_true', help='Check patch status')
-    
+    group.add_argument("--apply", action="store_true", help="Apply debug patches")
+    group.add_argument("--remove", action="store_true", help="Remove debug patches")
+    group.add_argument("--status", action="store_true", help="Check patch status")
+
     args = parser.parse_args()
-    
+
     if args.apply:
         apply_patches()
     elif args.remove:
@@ -418,5 +422,5 @@ def main():
         check_status()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
