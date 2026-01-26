@@ -3,7 +3,6 @@ from typing import List, Tuple, Union
 import torch
 
 from sglang.srt.dllm.algorithm.base import DllmAlgorithm
-from sglang.srt.dllm.algorithm.triton_pick_tokens import pick_tokens_triton
 from sglang.srt.dllm.config import DllmConfig
 from sglang.srt.layers.logits_processor import LogitsProcessorOutput
 from sglang.srt.model_executor.forward_batch_info import ForwardBatch
@@ -17,7 +16,7 @@ class LowConfidenceUnified(DllmAlgorithm):
         super().__init__(config)
         self.threshold = config.algorithm_config.get("threshold", 0.95)
 
-    def _pick_tokens_torch(
+    def _pick_tokens(
         self, forward_batch: ForwardBatch, full_logits: torch.Tensor
     ) -> None:
         """PyTorch implementation of pick_tokens (fallback)."""
