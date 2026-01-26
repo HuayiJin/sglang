@@ -48,6 +48,7 @@ class DllmConfig:
             else server_args.max_running_requests
         )
 
+        is_unified_forward = server_args.dllm_algorithm == "LowConfidenceUnified"
         algorithm_config = {}
         if server_args.dllm_algorithm_config is not None:
             try:
@@ -69,5 +70,5 @@ class DllmConfig:
             block_size=block_size,
             mask_id=mask_id,
             max_running_requests=max_running_requests,
-            is_unified_forward = algo_name_to_cls[server_args.dllm_algorithm].is_unified_forward is True
+            is_unified_forward = is_unified_forward,
         )
