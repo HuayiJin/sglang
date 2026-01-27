@@ -82,7 +82,7 @@ def run_eval(args):
         s += sgl.gen(
             "answer",
             max_tokens=args.max_new_tokens,
-            stop=["Question", "Assistant:", "<|separator|>"],
+            stop=["\n\nQuestion", "Assistant:", "<|separator|>"],
         )
 
     #####################################

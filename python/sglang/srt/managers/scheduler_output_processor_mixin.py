@@ -329,6 +329,8 @@ class SchedulerOutputProcessorMixin:
         batch: ScheduleBatch,
         result: GenerationBatchResult,
     ):
+        target = [1285, 7638, 296, 220, 19, 5400, 30, 198, 19002, 25]
+
         if result.copy_done is not None:
             result.copy_done.synchronize()
 
@@ -339,6 +341,10 @@ class SchedulerOutputProcessorMixin:
             req = batch.reqs[idx]
             next_token_ids:list = result.next_token_ids[idx]
             len_cur_tokens = len(next_token_ids)
+
+            if req.origin_input_ids[-10] == 1285 and req.origin_input_ids[-9] == 7638 and req.origin_input_ids[-8] == 296 and req.origin_input_ids[-7] == 220 and req.origin_input_ids[-6] == 19 and req.origin_input_ids[-5] == 5400 and req.origin_input_ids[-4] == 30:
+                print(f"{req.fill_ids=}")
+                print(f"{next_token_ids=}")
 
             assert len_cur_tokens == block_size
             if result.accept_length_per_req_cpu[idx] == 0:
