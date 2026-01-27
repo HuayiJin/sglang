@@ -105,8 +105,13 @@ def run_eval(args):
     for i in range(len(states)):
         preds.append(get_answer_value(states[i]["answer"]))
 
-    # print(f"{preds=}")
-    # print(f"{labels=}")
+    # Debug: print invalid outputs
+    for i, pred in enumerate(preds):
+        if pred == INVALID:
+            print(f"[DEBUG] Invalid at index {i}:")
+            print(f"  Question: {questions[i][:100]}...")
+            print(f"  Model answer: {states[i]['answer'][:200]}")
+            print("-" * 50)
 
     # Compute accuracy
     acc = np.mean(np.array(preds) == np.array(labels))
