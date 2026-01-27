@@ -985,6 +985,7 @@ class SchedulerOutputProcessorMixin:
                     )
 
             if should_output:
+                print(f"{req.rid=} {req.origin_input_ids=} {req.output_ids=}")
                 send_token_offset = req.send_token_offset
                 send_output_token_logprobs_offset = (
                     req.send_output_token_logprobs_offset
