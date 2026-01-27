@@ -87,7 +87,7 @@ class LowConfidenceFDFO(DllmAlgorithm):
         self,
         model_runner: ModelRunner,
         forward_batch: ForwardBatch,
-    ) -> Tuple[Union[LogitsProcessorOutput, torch.Tensor], List[List[int]], bool]:
+    ) -> Tuple[Union[LogitsProcessorOutput, torch.Tensor], List[List[int]], List[int], bool]:
         # Forward pass through the model (no preprocessing needed)
         # each block may contain mask or finished tokens
         out = model_runner.forward(forward_batch, pp_proxy_tensors=None)

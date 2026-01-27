@@ -851,7 +851,7 @@ class Req:
             self.dllm_ids = self.origin_input_ids + [mask_id] * padding
             self.fill_ids = self.dllm_ids[:block_size]
         elif self.dllm_incomplete_ids: # revert chrrent fill_ids and refill them by dllm_incomplete_ids
-            assert len(self.dllm_incomplete_ids) == block_size and len(self.fill_ids) == len_prefix + block_size, f"{len(self.dllm_incomplete_ids)=} {block_size=} {len(self.fill_ids)=} {len_prefix=}"
+            assert len(self.dllm_incomplete_ids) == block_size and len(self.fill_ids) == len_prefix + block_size, f"len(self.dllm_incomplete_ids) error"
             self.fill_ids = self.fill_ids[:len_prefix] + self.dllm_incomplete_ids
         else:
             self.dllm_block_offset += block_size

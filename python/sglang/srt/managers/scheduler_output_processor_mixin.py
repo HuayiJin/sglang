@@ -356,8 +356,8 @@ class SchedulerOutputProcessorMixin:
             req.dllm_incomplete_ids = []
             len_input = len(req.origin_input_ids)
             len_fill = len(req.fill_ids)
-            if (len_fill < len_input):
-                continue # prefill
+            if (len_fill <= len_input):
+                continue # Since model is only filled with input ids, we are still on prefill stage.
 
             if len_fill - len_cur_tokens < len_input:
                 next_token_ids = next_token_ids[len_input-len_fill:] # avoid mix input and output
@@ -365,7 +365,6 @@ class SchedulerOutputProcessorMixin:
 
             finished=False
             for next_token_id in next_token_ids:
-                # dllm_debug_print(f"Trying to append output_ids on {idx=} with {next_token_id=}")
                 req.output_ids.append(next_token_id)
                 req.check_finished()
                 if req.finished():
