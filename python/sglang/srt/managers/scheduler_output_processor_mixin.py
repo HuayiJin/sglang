@@ -952,6 +952,7 @@ class SchedulerOutputProcessorMixin:
                 continue
 
             if req.finished():
+                print(f"{req.rid=}\n{req.origin_input_ids=}\n{req.output_ids=}\n")
                 if req.finished_output:
                     # With the overlap schedule, a request will try to output twice and hit this line twice
                     # because of the one additional delayed token. This "continue" prevented the dummy output.
@@ -985,7 +986,6 @@ class SchedulerOutputProcessorMixin:
                     )
 
             if should_output:
-                print(f"{req.rid=} {req.origin_input_ids=} {req.output_ids=}")
                 send_token_offset = req.send_token_offset
                 send_output_token_logprobs_offset = (
                     req.send_output_token_logprobs_offset
