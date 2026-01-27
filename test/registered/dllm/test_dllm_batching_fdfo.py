@@ -22,7 +22,7 @@ The test will be removed once dLLM batching performance improves.
 """
 
 
-class TestBatching(CustomTestCase):
+class TestBatchingFDFO(CustomTestCase):
     @classmethod
     def setUpClass(cls):
         cls.model = "inclusionAI/LLaDA2.0-mini"
@@ -37,8 +37,7 @@ class TestBatching(CustomTestCase):
             "--attention-backend",
             "flashinfer",
             "--dllm-algorithm",
-            "LowConfidence",
-            # "LowConfidenceFDFO", # try this for 2-4 times speed up
+            "LowConfidenceFDFO",
         ]
 
         cls.process = popen_launch_server(
