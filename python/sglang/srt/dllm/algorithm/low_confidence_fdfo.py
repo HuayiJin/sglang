@@ -10,12 +10,12 @@ from sglang.srt.model_executor.model_runner import ModelRunner
 
 
 class LowConfidenceFDFO(DllmAlgorithm):
-    """Low Confidence Stream algorithm for DLLM using top-2 logit difference as confidence."""
+    """Low Confidence algorithm for DLLM. Requiring first done first out mode"""
+    requires_fdfo_mode: bool = True
 
     def __init__(self, config: DllmConfig) -> None:
         super().__init__(config)
         self.threshold = config.algorithm_config.get("threshold", 0.95)
-        self.first_done_first_out_mode = True
 
     def _pick_tokens(
         self, forward_batch: ForwardBatch, full_logits: torch.Tensor
