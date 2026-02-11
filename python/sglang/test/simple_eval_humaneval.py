@@ -128,4 +128,9 @@ class HumanEval(Eval):
         results = common.map_with_progress(
             fn, self.examples, num_threads=self._num_threads
         )
+
+        # Print TPS statistics after evaluation
+        if hasattr(sampler, "print_tps_stats"):
+            sampler.print_tps_stats()
+
         return common.aggregate_results(results)

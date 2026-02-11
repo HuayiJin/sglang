@@ -109,9 +109,39 @@ class ChatCompletionSampler(SamplerBase):
         self.reasoning_effort = reasoning_effort
         self.extra_body = extra_body
         self.image_format = "url"
+
+        # TPS tracking
+        self.total_prompt_tokens = 0
+        self.total_completion_tokens = 0
+        self.total_time = 0.0
+        self.request_count = 0
+
         print(
             f"ChatCompletionSampler initialized with {self.system_message=} {self.temperature=} {self.max_tokens=} {self.reasoning_effort=} {self.extra_body=}"
         )
+
+    def print_tps_stats(self):
+        """Print TPS (tokens per second) statistics."""
+        print("\n" + "=" * 50)
+        print("TPS Statistics")
+        print("=" * 50)
+        print(f"Total requests: {self.request_count}")
+        print(f"Total prompt tokens: {self.total_prompt_tokens}")
+        print(f"Total completion tokens: {self.total_completion_tokens}")
+        print(
+            f"Total tokens: {self.total_prompt_tokens + self.total_completion_tokens}"
+        )
+        print(f"Total time: {self.total_time:.2f} seconds")
+        if self.total_time > 0:
+            prompt_tps = self.total_prompt_tokens / self.total_time
+            completion_tps = self.total_completion_tokens / self.total_time
+            total_tps = (
+                self.total_prompt_tokens + self.total_completion_tokens
+            ) / self.total_time
+            print(f"Prompt TPS (input): {prompt_tps:.2f} tokens/sec")
+            print(f"Completion TPS (output): {completion_tps:.2f} tokens/sec")
+            print(f"Total TPS: {total_tps:.2f} tokens/sec")
+        print("=" * 50 + "\n")
 
     def _handle_image(
         self,
@@ -142,6 +172,7 @@ class ChatCompletionSampler(SamplerBase):
         trial = 0
         while trial < 6:  # 126 seconds in total
             try:
+                start_time = time.time()
                 response = self.client.chat.completions.create(
                     model=self.model,
                     messages=message_list,
@@ -151,6 +182,15 @@ class ChatCompletionSampler(SamplerBase):
                     reasoning_effort=self.reasoning_effort,
                     extra_body=self.extra_body,
                 )
+                elapsed_time = time.time() - start_time
+
+                # Track TPS metrics
+                self.total_time += elapsed_time
+                self.request_count += 1
+                if response.usage:
+                    self.total_prompt_tokens += response.usage.prompt_tokens
+                    self.total_completion_tokens += response.usage.completion_tokens
+
                 return response.choices[0].message.content or ""
             # NOTE: BadRequestError is triggered once for MMMU, please uncomment if you are rerunning MMMU
             except openai.BadRequestError as e:
